@@ -14,12 +14,81 @@ use crate::permissions::{
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 /// How long `tool/before` waits for a `host/ask` reply. Must sit under
 /// the host's ask-gated outer deadline (330s).
-const ASK_TTL: Duration = Duration::from_secs(5);
+const ASK_TTL: Duration = Duration::from_secs(300);
+const ASK_TTL_HEADLESS: Duration = Duration::from_secs(30);
+const ASK_PROBE_TTL: Duration = Duration::from_secs(5);
+
+const HOST_UNKNOWN: u8 = 0;
+const HOST_INTERACTIVE: u8 = 1;
+const HOST_HEADLESS: u8 = 2;
+static HOST: AtomicU8 = AtomicU8::new(HOST_UNKNOWN);
+
+pub fn note_host_event(params: &serde_json::Value) {
+    if params.get("type").and_then(|t| t.as_str()) != Some("session_start") {
+        return;
+    }
+    let interactive = params
+        .get("interactive")
+        .and_then(|i| i.as_bool())
+        .unwrap_or(false);
+    HOST.store(
+        if interactive {
+            HOST_INTERACTIVE
+        } else {
+            HOST_HEADLESS
+        },
+        Ordering::Relaxed,
+    );
+}
+
+fn host_answers(
+    out: &Arc<Mutex<std::io::Stdout>>,
+    pending: &Pending,
+    counter: &Arc<Mutex<u64>>,
+) -> bool {
+    let id = next_id(counter);
+    let (tx, rx) = mpsc::channel();
+    pending.lock().expect("pending").insert(id.clone(), tx);
+    let req = serde_json::json!({
+        "id": id,
+        "method": "host/ask",
+        "params": { "questions": [], "blocking": false },
+    });
+    {
+        let mut o = out.lock().expect("stdout");
+        let _ = writeln!(o, "{req}");
+        let _ = o.flush();
+    }
+    let answered = rx.recv_timeout(ASK_PROBE_TTL).is_ok();
+    pending.lock().expect("pending").remove(&id);
+    answered
+}
+
+fn ask_ttl(
+    out: &Arc<Mutex<std::io::Stdout>>,
+    pending: &Pending,
+    counter: &Arc<Mutex<u64>>,
+) -> Option<Duration> {
+    match HOST.load(Ordering::Relaxed) {
+        HOST_INTERACTIVE => Some(ASK_TTL),
+        HOST_HEADLESS => Some(ASK_TTL_HEADLESS),
+        _ => host_answers(out, pending, counter).then(|| {
+            let _ = HOST.compare_exchange(
+                HOST_UNKNOWN,
+                HOST_INTERACTIVE,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            );
+            ASK_TTL
+        }),
+    }
+}
 
 pub type Pending = Arc<Mutex<HashMap<String, mpsc::Sender<serde_json::Value>>>>;
 
@@ -92,6 +161,9 @@ pub fn tool_before(
         Err(reason) => return serde_json::json!({"decision": "deny", "reason": reason}),
         Ok(false) => {}
     }
+    let Some(ttl) = ask_ttl(out, pending, counter) else {
+        return serde_json::json!({"decision": "deny", "reason": "approval prompt unavailable"});
+    };
     let label = call_label(name, &args);
     let q = approval_question(name, &label, &cwd);
     let id = next_id(counter);
@@ -115,7 +187,7 @@ pub fn tool_before(
         let _ = writeln!(o, "{req}");
         let _ = o.flush();
     }
-    let picked: Vec<String> = match rx.recv_timeout(ASK_TTL) {
+    let picked: Vec<String> = match rx.recv_timeout(ttl) {
         Ok(result) => {
             if result.get("error").and_then(|e| e.as_str()).is_some() {
                 return serde_json::json!({"decision": "deny", "reason": "approval prompt unavailable"});
