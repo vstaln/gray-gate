@@ -299,6 +299,10 @@ fn main() {
                 }
                 continue;
             }
+            if v.get("method").and_then(Value::as_str) == Some("event/notify") {
+                permissions_sidecar::note_host_event(v.get("params").unwrap_or(&Value::Null));
+                continue;
+            }
             let shutdown = v.get("method").and_then(Value::as_str) == Some("plugin/shutdown");
             if (v.get("id").is_some() || shutdown) && work_tx.send(v).is_err() {
                 break;
