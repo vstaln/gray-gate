@@ -53,7 +53,7 @@ fn manifest() -> Value {
         "version": env!("CARGO_PKG_VERSION"),
         "protocol": "2.0",
         "tools": [],
-        "description": "tool-call",
+        "description": "tool-call policy: approve, confirm or deny",
         "commands": [
             "/gate", "/permissions", "/perms", "/access", "/confirm", "/repguard",
         ],
