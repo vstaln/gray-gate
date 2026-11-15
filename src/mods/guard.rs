@@ -641,8 +641,7 @@ mod tests {
         assert!(
             scan_content("x.js", "eval(code)")
                 .iter()
-                .all(|h| h.0 != "eval_injection")
-                == false
+                .any(|h| h.0 == "eval_injection")
         );
     }
 
