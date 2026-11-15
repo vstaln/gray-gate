@@ -21,7 +21,7 @@ use std::time::Duration;
 /// How long `tool/before` waits for a `host/ask` reply. Must sit under
 /// the host's ask-gated outer deadline (330s).
 const ASK_TTL: Duration = Duration::from_secs(300);
-const ASK_TTL_HEADLESS: Duration = Duration::from_secs(30);
+const ASK_TTL_HEADLESS: Duration = Duration::from_secs(5);
 const ASK_PROBE_TTL: Duration = Duration::from_secs(5);
 
 const HOST_UNKNOWN: u8 = 0;
