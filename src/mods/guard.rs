@@ -26,10 +26,18 @@ const MAX_SCAN_BYTES: usize = 256 * 1024;
 
 /// Write-shaped tools whose args carry code being written to disk.
 const WRITE_TOOLS: &[&str] = &[
-    "write", "edit", "patch", "write_file", "apply_patch", "multi_edit", "notebook_edit",
+    "write",
+    "edit",
+    "patch",
+    "write_file",
+    "apply_patch",
+    "multi_edit",
+    "notebook_edit",
 ];
 
-const JS_EXTS: &[&str] = &[".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte"];
+const JS_EXTS: &[&str] = &[
+    ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte",
+];
 const PY_EXTS: &[&str] = &[".py", ".pyi", ".ipynb"];
 const DOC_EXTS: &[&str] = &[".md", ".mdx", ".txt", ".rst", ".json", ".yaml", ".yml"];
 
@@ -67,76 +75,189 @@ struct Rule {
 }
 
 const RULES: &[Rule] = &[
-    Rule { name: "github_actions_workflow", reminder: GITHUB_WORKFLOW_REMINDER, filter: PathFilter::GithubWorkflow, substrings: &[], regex: None },
-    Rule { name: "child_process_exec", reminder: CHILD_PROCESS_EXEC_REMINDER, filter: PathFilter::JsOnly,
+    Rule {
+        name: "github_actions_workflow",
+        reminder: GITHUB_WORKFLOW_REMINDER,
+        filter: PathFilter::GithubWorkflow,
+        substrings: &[],
+        regex: None,
+    },
+    Rule {
+        name: "child_process_exec",
+        reminder: CHILD_PROCESS_EXEC_REMINDER,
+        filter: PathFilter::JsOnly,
         substrings: &["child_process.exec", "execSync("],
-        regex: Some(r"(?<![a-zA-Z0-9_\.])exec\(") },
-    Rule { name: "new_function_injection",
+        regex: Some(r"(?<![a-zA-Z0-9_\.])exec\("),
+    },
+    Rule {
+        name: "new_function_injection",
         reminder: "new Function() is equivalent to eval() and can execute arbitrary code. To access properties use obj[key] or array.reduce((o, k) => o[k], root); for computation use a safe expression parser. NEVER interpolate untrusted strings into new Function() bodies.",
-        filter: PathFilter::Any, substrings: &["new Function"], regex: None },
-    Rule { name: "eval_injection",
+        filter: PathFilter::Any,
+        substrings: &["new Function"],
+        regex: None,
+    },
+    Rule {
+        name: "eval_injection",
         reminder: "eval() executes arbitrary code and is a major security risk. Use JSON.parse() for data, ast.literal_eval() for Python literals, or a safe expression parser. If this is safe or is explicitly needed, briefly document that in a comment before continuing.",
-        filter: PathFilter::NotDoc, substrings: &[],
-        regex: Some(r"(?<![a-zA-Z0-9_\.])eval\(") },
-    Rule { name: "react_dangerously_set_html",
+        filter: PathFilter::NotDoc,
+        substrings: &[],
+        regex: Some(r"(?<![a-zA-Z0-9_\.])eval\("),
+    },
+    Rule {
+        name: "react_dangerously_set_html",
         reminder: "dangerouslySetInnerHTML can lead to XSS vulnerabilities if used with untrusted content. Ensure all content is properly sanitized using an HTML sanitizer library like DOMPurify, or use safe alternatives.",
-        filter: PathFilter::Any, substrings: &["dangerouslySetInnerHTML"], regex: None },
-    Rule { name: "document_write_xss",
+        filter: PathFilter::Any,
+        substrings: &["dangerouslySetInnerHTML"],
+        regex: None,
+    },
+    Rule {
+        name: "document_write_xss",
         reminder: "document.write() can be exploited for XSS attacks and has performance issues. Use DOM manipulation methods like createElement() and appendChild() instead.",
-        filter: PathFilter::Any, substrings: &["document.write"], regex: None },
-    Rule { name: "innerHTML_xss",
+        filter: PathFilter::Any,
+        substrings: &["document.write"],
+        regex: None,
+    },
+    Rule {
+        name: "innerHTML_xss",
         reminder: "Setting innerHTML with untrusted content can lead to XSS vulnerabilities. Use textContent for plain text or safe DOM methods for HTML content. If you need HTML support, consider using an HTML sanitizer library such as DOMPurify.",
-        filter: PathFilter::Any, substrings: &[".innerHTML =", ".innerHTML="], regex: None },
-    Rule { name: "pickle_deserialization", reminder: UNSAFE_DESERIALIZATION_REMINDER, filter: PathFilter::PyOnly, substrings: &[],
-        regex: Some(r"(?<![a-zA-Z0-9_])pickle\.(loads?|Unpickler)\b|(?<![a-zA-Z0-9_])pkl_load\(") },
-    Rule { name: "os_system_injection",
+        filter: PathFilter::Any,
+        substrings: &[".innerHTML =", ".innerHTML="],
+        regex: None,
+    },
+    Rule {
+        name: "pickle_deserialization",
+        reminder: UNSAFE_DESERIALIZATION_REMINDER,
+        filter: PathFilter::PyOnly,
+        substrings: &[],
+        regex: Some(r"(?<![a-zA-Z0-9_])pickle\.(loads?|Unpickler)\b|(?<![a-zA-Z0-9_])pkl_load\("),
+    },
+    Rule {
+        name: "os_system_injection",
         reminder: "os.system() runs a shell and is a command-injection sink. Use subprocess.run([...]) with a list of arguments instead. If this is safe or is explicitly needed, briefly document that in a comment before continuing.",
-        filter: PathFilter::PyOnly, substrings: &["from os import system"],
-        regex: Some(r"\bos\.system\s*\(") },
-    Rule { name: "python_subprocess_shell", reminder: SUBPROCESS_SHELL_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"subprocess\.(?:run|call|Popen|check_output|check_call)\(.*shell\s*=\s*True") },
-    Rule { name: "go_exec_shell_injection", reminder: GO_EXEC_SHELL_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r#"exec\.Command\(\s*"(?:sh|bash|/bin/sh|/bin/bash)""#) },
-    Rule { name: "unsafe_yaml_load", reminder: UNSAFE_YAML_LOAD_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\byaml\.load\s*\((?![^)\n]{0,80}\bSafe)") },
-    Rule { name: "node_createcipher_no_iv",
+        filter: PathFilter::PyOnly,
+        substrings: &["from os import system"],
+        regex: Some(r"\bos\.system\s*\("),
+    },
+    Rule {
+        name: "python_subprocess_shell",
+        reminder: SUBPROCESS_SHELL_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"subprocess\.(?:run|call|Popen|check_output|check_call)\(.*shell\s*=\s*True"),
+    },
+    Rule {
+        name: "go_exec_shell_injection",
+        reminder: GO_EXEC_SHELL_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r#"exec\.Command\(\s*"(?:sh|bash|/bin/sh|/bin/bash)""#),
+    },
+    Rule {
+        name: "unsafe_yaml_load",
+        reminder: UNSAFE_YAML_LOAD_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"\byaml\.load\s*\((?![^)\n]{0,80}\bSafe)"),
+    },
+    Rule {
+        name: "node_createcipher_no_iv",
         reminder: "Use crypto.createCipheriv() / createDecipheriv(). createCipher was removed in Node 22 and derives the key insecurely (no IV, MD5-based KDF).",
-        filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\bcrypto\.(createCipher|createDecipher)\b") },
-    Rule { name: "aes_ecb_mode",
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"\bcrypto\.(createCipher|createDecipher)\b"),
+    },
+    Rule {
+        name: "aes_ecb_mode",
         reminder: "Use AES-GCM or AES-CBC with HMAC. ECB mode leaks plaintext structure (identical blocks encrypt to identical ciphertext).",
-        filter: PathFilter::Any, substrings: &[],
-        regex: Some(r#"\bAES\.MODE_ECB\b|\bmodes\.ECB\s*\(|[\x22\x27]aes-\d+-ecb[\x22\x27]"#) },
-    Rule { name: "tls_verification_disabled",
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r#"\bAES\.MODE_ECB\b|\bmodes\.ECB\s*\(|[\x22\x27]aes-\d+-ecb[\x22\x27]"#),
+    },
+    Rule {
+        name: "tls_verification_disabled",
         reminder: "Don't disable TLS verification. This allows MITM attacks. For self-signed dev certs, add the CA to your trust store or use a properly-issued cert.",
-        filter: PathFilter::Any, substrings: &[],
-        regex: Some(r#"\bverify\s*=\s*False\b|rejectUnauthorized\s*:\s*false|InsecureSkipVerify\s*:\s*true|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*[\x22\x27]?0|ssl\._create_unverified_context|check_hostname\s*=\s*False"#) },
-    Rule { name: "marshal_loads", reminder: UNSAFE_DESERIALIZATION_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\bmarshal\.loads?\s*\(") },
-    Rule { name: "shelve_open", reminder: UNSAFE_DESERIALIZATION_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\bshelve\.open\s*\(") },
-    Rule { name: "xml_unsafe_parse",
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(
+            r#"\bverify\s*=\s*False\b|rejectUnauthorized\s*:\s*false|InsecureSkipVerify\s*:\s*true|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*[\x22\x27]?0|ssl\._create_unverified_context|check_hostname\s*=\s*False"#,
+        ),
+    },
+    Rule {
+        name: "marshal_loads",
+        reminder: UNSAFE_DESERIALIZATION_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"\bmarshal\.loads?\s*\("),
+    },
+    Rule {
+        name: "shelve_open",
+        reminder: UNSAFE_DESERIALIZATION_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"\bshelve\.open\s*\("),
+    },
+    Rule {
+        name: "xml_unsafe_parse",
         reminder: "Use defusedxml.ElementTree. Python's stdlib XML parsers are vulnerable to XXE (external entity) and billion-laughs attacks by default.",
-        filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\b(xml\.etree\.ElementTree|ElementTree|ET)\.(parse|fromstring|XML)\s*\(|\bminidom\.(parse|parseString)\s*\(|\bxml\.sax\.(parse|make_parser)\b") },
-    Rule { name: "pickle_variants_load", reminder: UNSAFE_DESERIALIZATION_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\b(cPickle|cloudpickle|dill)\.(load|loads)\s*\(") },
-    Rule { name: "outerHTML_xss",
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(
+            r"\b(xml\.etree\.ElementTree|ElementTree|ET)\.(parse|fromstring|XML)\s*\(|\bminidom\.(parse|parseString)\s*\(|\bxml\.sax\.(parse|make_parser)\b",
+        ),
+    },
+    Rule {
+        name: "pickle_variants_load",
+        reminder: UNSAFE_DESERIALIZATION_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"\b(cPickle|cloudpickle|dill)\.(load|loads)\s*\("),
+    },
+    Rule {
+        name: "outerHTML_xss",
         reminder: "Use textContent or sanitize with DOMPurify. outerHTML assignment is an XSS sink equivalent to innerHTML.",
-        filter: PathFilter::Any, substrings: &[".outerHTML =", ".outerHTML="], regex: None },
-    Rule { name: "insertAdjacentHTML_xss",
+        filter: PathFilter::Any,
+        substrings: &[".outerHTML =", ".outerHTML="],
+        regex: None,
+    },
+    Rule {
+        name: "insertAdjacentHTML_xss",
         reminder: "Use insertAdjacentText() or sanitize with DOMPurify. insertAdjacentHTML is an XSS sink.",
-        filter: PathFilter::Any, substrings: &[".insertAdjacentHTML("], regex: None },
-    Rule { name: "script_src_without_sri",
+        filter: PathFilter::Any,
+        substrings: &[".insertAdjacentHTML("],
+        regex: None,
+    },
+    Rule {
+        name: "script_src_without_sri",
         reminder: "Add integrity=\"sha384-...\" crossorigin=\"anonymous\" to external script tags. Loading scripts without Subresource Integrity exposes you to CDN compromise.",
-        filter: PathFilter::Any, substrings: &[],
-        regex: Some(r#"<script\s+(?![^>]{0,400}integrity\s*=)[^>]{0,200}src\s*=\s*[\x22\x27](?:https?:)?//[^\x22\x27]{1,300}[\x22\x27][^>]{0,100}>"#) },
-    Rule { name: "torch_unsafe_load", reminder: UNSAFE_TORCH_LOAD_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"(?:\btorch\.load|\.torch_load)\s*\((?![^)\n]{0,200}weights_only\s*=\s*True)") },
-    Rule { name: "yaml_unsafe_load_variants", reminder: UNSAFE_YAML_LOAD_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"(?:\byaml\.unsafe_load|\.yaml_unsafe_load)\s*\(") },
-    Rule { name: "pickle_wrapper_load", reminder: UNSAFE_DESERIALIZATION_REMINDER, filter: PathFilter::Any, substrings: &[],
-        regex: Some(r"\bjoblib\.load\s*\(|\b(?:pd|pandas)\.read_pickle\s*\(|\.cloudpickle_load\s*\(|\b(?:np|numpy)\.load\s*\([^)\n]{0,200}allow_pickle\s*=\s*True") },
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(
+            r#"<script\s+(?![^>]{0,400}integrity\s*=)[^>]{0,200}src\s*=\s*[\x22\x27](?:https?:)?//[^\x22\x27]{1,300}[\x22\x27][^>]{0,100}>"#,
+        ),
+    },
+    Rule {
+        name: "torch_unsafe_load",
+        reminder: UNSAFE_TORCH_LOAD_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"(?:\btorch\.load|\.torch_load)\s*\((?![^)\n]{0,200}weights_only\s*=\s*True)"),
+    },
+    Rule {
+        name: "yaml_unsafe_load_variants",
+        reminder: UNSAFE_YAML_LOAD_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(r"(?:\byaml\.unsafe_load|\.yaml_unsafe_load)\s*\("),
+    },
+    Rule {
+        name: "pickle_wrapper_load",
+        reminder: UNSAFE_DESERIALIZATION_REMINDER,
+        filter: PathFilter::Any,
+        substrings: &[],
+        regex: Some(
+            r"\bjoblib\.load\s*\(|\b(?:pd|pandas)\.read_pickle\s*\(|\.cloudpickle_load\s*\(|\b(?:np|numpy)\.load\s*\([^)\n]{0,200}allow_pickle\s*=\s*True",
+        ),
+    },
 ];
 
 struct CompiledRule {
@@ -167,7 +288,8 @@ fn path_filter_ok(filter: PathFilter, path: &str) -> bool {
         PathFilter::PyOnly => PY_EXTS.iter().any(|e| path.ends_with(e)),
         PathFilter::NotDoc => !DOC_EXTS.iter().any(|e| path.ends_with(e)),
         PathFilter::GithubWorkflow => {
-            path.contains(".github/workflows/") && (path.ends_with(".yml") || path.ends_with(".yaml"))
+            path.contains(".github/workflows/")
+                && (path.ends_with(".yml") || path.ends_with(".yaml"))
         }
     }
 }
@@ -218,7 +340,10 @@ fn format_warning_block(findings: &[(&str, &str)]) -> String {
         names.join(", ")
     );
     for (name, reminder) in findings {
-        out.push_str(&format!("\n⚠️ Security warning: {name} — {}\n", strip_marker(reminder)));
+        out.push_str(&format!(
+            "\n⚠️ Security warning: {name} — {}\n",
+            strip_marker(reminder)
+        ));
     }
     out.push_str(
         "\nPattern matches can be false positives. If the construct is safe in this \
@@ -280,7 +405,11 @@ fn session_key(params: &Value) -> (String, String) {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    let name = params.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     (sid, name)
 }
 
@@ -295,7 +424,10 @@ fn tool_before(params: &Value) -> Value {
     } else if name == "bash" {
         let command = args.get("command").and_then(Value::as_str).unwrap_or("");
         if is_bash_heredoc(command) {
-            (heredoc_target(command).unwrap_or_default(), vec![command.to_string()])
+            (
+                heredoc_target(command).unwrap_or_default(),
+                vec![command.to_string()],
+            )
         } else {
             (String::new(), Vec::new())
         }
@@ -395,7 +527,9 @@ fn main_guard() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     for line in stdin.lock().lines() {
         let line = line?;
-        let Ok(req) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(req) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let (reply, exit) = handle_guard(&req);
         if let Some(reply) = reply {
             writeln!(stdout, "{reply}")?;
@@ -432,7 +566,11 @@ mod tests {
         assert_eq!(RULES.len(), 25);
         for c in COMPILED.iter() {
             if let Some(src) = c.rule.regex {
-                assert!(c.regex.is_some(), "rule {} failed to compile: {src}", c.rule.name);
+                assert!(
+                    c.regex.is_some(),
+                    "rule {} failed to compile: {src}",
+                    c.rule.name
+                );
             }
         }
     }
@@ -440,16 +578,36 @@ mod tests {
     #[test]
     fn known_patterns_hit() {
         let cases: &[(&str, &str, &str)] = &[
-            ("x.py", "import pickle\npickle.load(f)", "pickle_deserialization"),
+            (
+                "x.py",
+                "import pickle\npickle.load(f)",
+                "pickle_deserialization",
+            ),
             ("x.py", "os.system('ls')", "os_system_injection"),
             ("x.py", "yaml.load(data)", "unsafe_yaml_load"),
             ("x.py", "torch.load('m.pt')", "torch_unsafe_load"),
             ("x.ts", "eval(code)", "eval_injection"),
-            ("x.tsx", "dangerouslySetInnerHTML={{__html: d}}", "react_dangerously_set_html"),
+            (
+                "x.tsx",
+                "dangerouslySetInnerHTML={{__html: d}}",
+                "react_dangerously_set_html",
+            ),
             ("x.js", "el.innerHTML = s", "innerHTML_xss"),
-            ("x.js", "crypto.createCipher('aes-256', k)", "node_createcipher_no_iv"),
-            ("x.py", "requests.get(u, verify=False)", "tls_verification_disabled"),
-            ("x.py", "subprocess.run(c, shell=True)", "python_subprocess_shell"),
+            (
+                "x.js",
+                "crypto.createCipher('aes-256', k)",
+                "node_createcipher_no_iv",
+            ),
+            (
+                "x.py",
+                "requests.get(u, verify=False)",
+                "tls_verification_disabled",
+            ),
+            (
+                "x.py",
+                "subprocess.run(c, shell=True)",
+                "python_subprocess_shell",
+            ),
             ("x.py", "pickle.loads(b)", "pickle_deserialization"),
             ("x.py", "joblib.load('m.pkl')", "pickle_wrapper_load"),
         ];
@@ -464,20 +622,39 @@ mod tests {
 
     #[test]
     fn safe_constructs_dont_hit() {
-        assert!(scan_content("x.py", "yaml.load(d, Loader=yaml.SafeLoader)")
-            .iter().all(|h| h.0 != "unsafe_yaml_load"));
-        assert!(scan_content("x.py", "torch.load('m.pt', weights_only=True)")
-            .iter().all(|h| h.0 != "torch_unsafe_load"));
-        assert!(scan_content("x.py", "model.eval()").iter().all(|h| h.0 != "eval_injection"));
+        assert!(
+            scan_content("x.py", "yaml.load(d, Loader=yaml.SafeLoader)")
+                .iter()
+                .all(|h| h.0 != "unsafe_yaml_load")
+        );
+        assert!(
+            scan_content("x.py", "torch.load('m.pt', weights_only=True)")
+                .iter()
+                .all(|h| h.0 != "torch_unsafe_load")
+        );
+        assert!(
+            scan_content("x.py", "model.eval()")
+                .iter()
+                .all(|h| h.0 != "eval_injection")
+        );
         assert!(scan_content("x.md", "eval(code)").is_empty());
-        assert!(scan_content("x.js", "eval(code)").iter().all(|h| h.0 != "eval_injection") == false);
+        assert!(
+            scan_content("x.js", "eval(code)")
+                .iter()
+                .all(|h| h.0 != "eval_injection")
+                == false
+        );
     }
 
     #[test]
     fn workflow_path_fires_on_path_alone() {
         let hits = scan_content(".github/workflows/ci.yml", "name: ci");
         assert!(hits.iter().any(|h| h.0 == "github_actions_workflow"));
-        assert!(scan_content("ci.yml", "name: ci").iter().all(|h| h.0 != "github_actions_workflow"));
+        assert!(
+            scan_content("ci.yml", "name: ci")
+                .iter()
+                .all(|h| h.0 != "github_actions_workflow")
+        );
     }
 
     #[test]
@@ -501,7 +678,10 @@ mod tests {
                    "session": {"id": "s1", "cwd": "/tmp"}}),
         );
         let content = after["result"]["content"].as_str().unwrap_or("");
-        assert!(content.contains("Security warning: os_system_injection"), "got: {content}");
+        assert!(
+            content.contains("Security warning: os_system_injection"),
+            "got: {content}"
+        );
     }
 
     #[test]
@@ -526,12 +706,20 @@ mod tests {
             "tool/after",
             json!({"name": "bash", "content": "", "is_error": false, "session": {"id": "s2"}}),
         );
-        assert!(after["result"]["content"].as_str().unwrap_or("").contains("pickle_deserialization"));
+        assert!(
+            after["result"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .contains("pickle_deserialization")
+        );
     }
 
     #[test]
     fn non_write_tools_pass() {
-        let r = call("tool/before", json!({"name": "read", "args": {"path": "x"}, "session": {}}));
+        let r = call(
+            "tool/before",
+            json!({"name": "read", "args": {"path": "x"}, "session": {}}),
+        );
         assert_eq!(r["result"]["decision"], "allow");
     }
 }

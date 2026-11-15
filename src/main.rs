@@ -200,7 +200,12 @@ fn argv_of(params: &Value) -> Vec<String> {
     params
         .get("argv")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -290,7 +295,9 @@ fn main() {
         let stdin = std::io::stdin();
         for line in stdin.lock().lines() {
             let Ok(line) = line else { break };
-            let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+            let Ok(v) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
             if let Some(id) = v.get("id").and_then(Value::as_str)
                 && v.get("method").is_none()
             {

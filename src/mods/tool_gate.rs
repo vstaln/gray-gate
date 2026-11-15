@@ -61,7 +61,10 @@ fn deny_list() -> Vec<String> {
 fn write_deny_list(list: &[String]) -> std::io::Result<()> {
     let dir = state_dir();
     std::fs::create_dir_all(&dir)?;
-    std::fs::write(deny_file(), list.join("\n") + if list.is_empty() { "" } else { "\n" })
+    std::fs::write(
+        deny_file(),
+        list.join("\n") + if list.is_empty() { "" } else { "\n" },
+    )
 }
 
 /// Glob match: `*` any run, `?` one char, everything else literal.
@@ -198,7 +201,9 @@ fn main_tool_gate() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     for line in stdin.lock().lines() {
         let line = line?;
-        let Ok(req) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(req) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let (reply, exit) = handle_tool_gate(&req);
         if let Some(reply) = reply {
             writeln!(stdout, "{reply}")?;
@@ -251,20 +256,45 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("gray-gate-test-{}", std::process::id()));
         unsafe { std::env::set_var("GRAY_HOME", &dir) };
 
-        let r = call("command/run", json!({"name": "/gate", "argv": ["deny", "rm-*"]}));
-        assert!(r["result"]["text"].as_str().unwrap().contains("denied rm-*"));
+        let r = call(
+            "command/run",
+            json!({"name": "/gate", "argv": ["deny", "rm-*"]}),
+        );
+        assert!(
+            r["result"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("denied rm-*")
+        );
 
-        let r = call("tool/before", json!({"name": "rm-tmp", "args": {}, "session": {}}));
+        let r = call(
+            "tool/before",
+            json!({"name": "rm-tmp", "args": {}, "session": {}}),
+        );
         assert_eq!(r["result"]["decision"], "deny");
-        assert!(r["result"]["reason"].as_str().unwrap().contains("/gate allow rm-*"));
+        assert!(
+            r["result"]["reason"]
+                .as_str()
+                .unwrap()
+                .contains("/gate allow rm-*")
+        );
 
         // non-matching tools still pass
-        let r = call("tool/before", json!({"name": "bash", "args": {}, "session": {}}));
+        let r = call(
+            "tool/before",
+            json!({"name": "bash", "args": {}, "session": {}}),
+        );
         assert_eq!(r["result"]["decision"], "allow");
 
-        let r = call("command/run", json!({"name": "/gate", "argv": ["allow", "rm-*"]}));
+        let r = call(
+            "command/run",
+            json!({"name": "/gate", "argv": ["allow", "rm-*"]}),
+        );
         assert!(r["result"]["text"].as_str().unwrap().contains("allowed"));
-        let r = call("tool/before", json!({"name": "rm-tmp", "args": {}, "session": {}}));
+        let r = call(
+            "tool/before",
+            json!({"name": "rm-tmp", "args": {}, "session": {}}),
+        );
         assert_eq!(r["result"]["decision"], "allow");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -276,7 +306,10 @@ mod tests {
         let _env = ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!("gray-gate-empty-{}", std::process::id()));
         unsafe { std::env::set_var("GRAY_HOME", &dir) };
-        let r = call("tool/before", json!({"name": "bash", "args": {}, "session": {}}));
+        let r = call(
+            "tool/before",
+            json!({"name": "bash", "args": {}, "session": {}}),
+        );
         assert_eq!(r["result"]["decision"], "allow");
         let _ = std::fs::remove_dir_all(&dir);
         unsafe { std::env::remove_var("GRAY_HOME") };
@@ -288,7 +321,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("gray-gate-cfg-{}", std::process::id()));
         unsafe { std::env::set_var("GRAY_HOME", &dir) };
         std::fs::create_dir_all(dir.join("tool-gate")).unwrap();
-        std::fs::write(dir.join("tool-gate/deny.txt"), "# comment\n\n  web_fetch  \n").unwrap();
+        std::fs::write(
+            dir.join("tool-gate/deny.txt"),
+            "# comment\n\n  web_fetch  \n",
+        )
+        .unwrap();
         assert_eq!(deny_list(), vec!["web_fetch".to_string()]);
         let _ = std::fs::remove_dir_all(&dir);
         unsafe { std::env::remove_var("GRAY_HOME") };
