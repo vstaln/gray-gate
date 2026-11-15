@@ -226,9 +226,12 @@ mod tests {
     use super::*;
 
     fn call(state: &State, method: &str, params: Value) -> Value {
-        handle_repguard(&json!({ "id": 1, "method": method, "params": params }), state)
-            .0
-            .unwrap()["result"]
+        handle_repguard(
+            &json!({ "id": 1, "method": method, "params": params }),
+            state,
+        )
+        .0
+        .unwrap()["result"]
             .clone()
     }
 
@@ -258,7 +261,11 @@ mod tests {
         let state: State = std::sync::Mutex::new(HashMap::new());
         let args = json!({"cmd": "ls"});
         for _ in 0..max_repeats() {
-            let r = call(&state, "tool/before", json!({"name":"bash","args":args,"session":sess()}));
+            let r = call(
+                &state,
+                "tool/before",
+                json!({"name":"bash","args":args,"session":sess()}),
+            );
             assert_eq!(r["decision"], "allow");
         }
         let r = call(
@@ -280,7 +287,11 @@ mod tests {
     fn different_args_do_not_nudge() {
         let state: State = std::sync::Mutex::new(HashMap::new());
         for i in 0..max_repeats() + 2 {
-            call(&state, "tool/before", json!({"name":"bash","args":{"cmd":i},"session":sess()}));
+            call(
+                &state,
+                "tool/before",
+                json!({"name":"bash","args":{"cmd":i},"session":sess()}),
+            );
         }
         let r = call(
             &state,

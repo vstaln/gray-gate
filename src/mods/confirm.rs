@@ -36,16 +36,16 @@ const LABEL_NO: &str = "No";
 /// Built-in dangerous patterns (pi permission-gate's list plus the rest of
 /// the port spec's destructive commands).
 const BUILTIN_PATTERNS: &[&str] = &[
-    r"\brm\s+(-[a-zA-Z]*r|--recursive)",  // rm -rf / rm -r / rm --recursive
-    r"\bsudo\b",                        // sudo
-    r"\b(chmod|chown)\b[^|&;]*\b777\b", // chmod/chown 777
-    r"\bdd\b\s",                        // dd if=… of=…
-    r"\bmkfs[.\w-]*\b",                 // mkfs, mkfs.ext4, …
-    r"\bshred\b",                       // shred
-    r">\s*/dev/",                       // > /dev/sda etc.
-    r"\bkill\s+-9\s+1\b",               // kill -9 1 (init)
+    r"\brm\s+(-[a-zA-Z]*r|--recursive)", // rm -rf / rm -r / rm --recursive
+    r"\bsudo\b",                         // sudo
+    r"\b(chmod|chown)\b[^|&;]*\b777\b",  // chmod/chown 777
+    r"\bdd\b\s",                         // dd if=… of=…
+    r"\bmkfs[.\w-]*\b",                  // mkfs, mkfs.ext4, …
+    r"\bshred\b",                        // shred
+    r">\s*/dev/",                        // > /dev/sda etc.
+    r"\bkill\s+-9\s+1\b",                // kill -9 1 (init)
     r"\bgit\s+push\b[^|&;]*(--force\b|-f\b)", // git push --force / -f
-    r"\bgit\s+reset\b[^|&;]*--hard\b",  // git reset --hard
+    r"\bgit\s+reset\b[^|&;]*--hard\b",   // git reset --hard
 ];
 
 pub type Pending = Arc<Mutex<HashMap<String, mpsc::Sender<Value>>>>;
@@ -253,7 +253,12 @@ pub fn tool_before(
 }
 
 /// `/confirm …` — `argv` excludes the command name.
-pub fn run_command(argv: &[&str], patterns: &[regex::Regex], bad: &[String], cfg: &ConfirmConfig) -> String {
+pub fn run_command(
+    argv: &[&str],
+    patterns: &[regex::Regex],
+    bad: &[String],
+    cfg: &ConfirmConfig,
+) -> String {
     match argv.first().copied() {
         Some("list") => {
             let mut lines = vec![format!("{} patterns active:", patterns.len())];
@@ -280,7 +285,10 @@ pub fn run_command(argv: &[&str], patterns: &[regex::Regex], bad: &[String], cfg
                 })
             };
             match res {
-                Ok(()) => format!("confirm gate {}", if argv[0] == "off" { "off" } else { "on" }),
+                Ok(()) => format!(
+                    "confirm gate {}",
+                    if argv[0] == "off" { "off" } else { "on" }
+                ),
                 Err(e) => format!("couldn't flip state: {e}"),
             }
         }
@@ -315,7 +323,9 @@ fn main_confirm() {
         let stdin = std::io::stdin();
         for line in stdin.lock().lines() {
             let Ok(line) = line else { break };
-            let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+            let Ok(v) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
             if let Some(id) = v.get("id").and_then(Value::as_str)
                 && v.get("method").is_none()
                 && let Some(tx) = reader_pending.lock().expect("pending").remove(id)
@@ -341,7 +351,12 @@ fn main_confirm() {
                 let argv: Vec<String> = params
                     .get("argv")
                     .and_then(Value::as_array)
-                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
                     .unwrap_or_default();
                 let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
                 json!({ "text": run_command(&argv, &patterns, &bad_patterns, &cfg) })
@@ -431,14 +446,22 @@ mod tests {
             "chmod 644 f",
             "cat /dev/null",
         ] {
-            assert!(matches!(classify_cmd(cmd), Verdict::Allow), "should allow: {cmd}");
+            assert!(
+                matches!(classify_cmd(cmd), Verdict::Allow),
+                "should allow: {cmd}"
+            );
         }
     }
 
     #[test]
     fn non_bash_and_disabled_allow() {
         assert!(matches!(
-            classify("write", &json!({"path": "x", "content": "sudo rm -rf /"}), &pats(), true),
+            classify(
+                "write",
+                &json!({"path": "x", "content": "sudo rm -rf /"}),
+                &pats(),
+                true
+            ),
             Verdict::Allow
         ));
         assert!(matches!(
